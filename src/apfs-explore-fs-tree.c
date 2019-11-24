@@ -192,6 +192,7 @@ int main(int argc, char** argv) {
                         fprintf(stderr, "\nABORT: Failed to read block %#llx.\n", child_node_omap_val->ov_paddr);
                         return -1;
                     }
+
                     if (*((uint64_t*)child_node) == 0) {
                         printf("  ||  ZEROED OUT");
                     }
