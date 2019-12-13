@@ -251,11 +251,14 @@ int main(int argc, char** argv) {
     for (uint32_t i = 0; i < xp_obj_len; i++) {
         if (!is_cksum_valid(xp_obj[i])) {
             printf("FAILED.\n");
-            printf("An Ephemeral object used by this checkpoint is malformed. Going back to look at the previous checkpoint instead.\n");
+            printf("An Ephemeral object used by this checkpoint is malformed. Proceeding anyway.\n");
+            break;
             
-            // TODO: Handle case where data for a given checkpoint is malformed
-            printf("END: Handling of this case has not yet been implemented.\n");
-            return 0;
+            // printf("An Ephemeral object used by this checkpoint is malformed. Going back to look at the previous checkpoint instead.\n");
+            
+            // // TODO: Handle case where data for a given checkpoint is malformed
+            // printf("END: Handling of this case has not yet been implemented.\n");
+            // return 0;
         }
     }
     printf("OK.\n");
