@@ -1,6 +1,6 @@
 ### Compiler/linker definitions ###
 FLAGS=-std=c99 -Werror -Wall -Wextra -Wno-incompatible-pointer-types -Wno-multichar \
--Wno-unused-variable
+-Wno-unused-variable -Wno-unused-parameter
 CC=gcc
 CFLAGS=$(FLAGS)
 LD=gcc
@@ -17,9 +17,15 @@ TARGETS		:= \
 	apfs-inspect \
 	apfs-explore-omap-tree \
 	apfs-explore-fs-tree \
+	apfs-search \
+	apfs-search-tailored \
 	apfs-search-last-btree-node \
+	apfs-modify \
+	apfs-resolver \
 	apfs-list \
-	apfs-recover
+	apfs-recover \
+	apfs-list-raw \
+	apfs-recover-raw
 SOURCES		:= $(wildcard $(SRCDIR)/*.c)
 HEADERS		:= $(wildcard $(SRCDIR)/*.h) $(wildcard $(SRCDIR)/*/*.h) $(wildcard $(SRCDIR)/*/*/*.h)
 OBJECTS		:= $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
