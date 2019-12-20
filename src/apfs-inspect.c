@@ -225,51 +225,51 @@ int main(int argc, char** argv) {
     }
     printf("- There are %u checkpoint-mappings in this checkpoint.\n\n", xp_obj_len);
 
-    printf("Reading the Ephemeral objects used by this checkpoint ... ");
-    char (*xp_obj)[nx_block_size] = malloc(xp_obj_len * nx_block_size);
-    if (!xp_obj) {
-        fprintf(stderr, "\nABORT: Could not allocate sufficient memory for `xp_obj`.\n");
-        return -1;
-    }
-    uint32_t num_read = 0;
-    for (uint32_t i = 0; i < nxsb->nx_xp_desc_len; i++) {
-        if (is_checkpoint_map_phys(xp[i])) {
-            checkpoint_map_phys_t* xp_map = xp[i];  // Avoid lots of casting
-            for (uint32_t j = 0; j < xp_map->cpm_count; j++) {
-                if (read_blocks(xp_obj[num_read], xp_map->cpm_map[j].cpm_paddr, 1) != 1) {
-                    fprintf(stderr, "\nABORT: Failed to read block 0x%llx.\n", xp_map->cpm_map[j].cpm_paddr);
-                    return -1;
-                }
-                num_read++;
-            }
-        }
-    }
-    printf("OK.\n");
-    assert(num_read = xp_obj_len);
+    // printf("Reading the Ephemeral objects used by this checkpoint ... ");
+    // char (*xp_obj)[nx_block_size] = malloc(xp_obj_len * nx_block_size);
+    // if (!xp_obj) {
+    //     fprintf(stderr, "\nABORT: Could not allocate sufficient memory for `xp_obj`.\n");
+    //     return -1;
+    // }
+    // uint32_t num_read = 0;
+    // for (uint32_t i = 0; i < nxsb->nx_xp_desc_len; i++) {
+    //     if (is_checkpoint_map_phys(xp[i])) {
+    //         checkpoint_map_phys_t* xp_map = xp[i];  // Avoid lots of casting
+    //         for (uint32_t j = 0; j < xp_map->cpm_count; j++) {
+    //             if (read_blocks(xp_obj[num_read], xp_map->cpm_map[j].cpm_paddr, 1) != 1) {
+    //                 fprintf(stderr, "\nABORT: Failed to read block 0x%llx.\n", xp_map->cpm_map[j].cpm_paddr);
+    //                 return -1;
+    //             }
+    //             num_read++;
+    //         }
+    //     }
+    // }
+    // printf("OK.\n");
+    // assert(num_read = xp_obj_len);
 
-    printf("Validating the Ephemeral objects ... ");
-    for (uint32_t i = 0; i < xp_obj_len; i++) {
-        if (!is_cksum_valid(xp_obj[i])) {
-            printf("FAILED.\n");
-            printf("An Ephemeral object used by this checkpoint is malformed. Going back to look at the previous checkpoint instead.\n");
+    // printf("Validating the Ephemeral objects ... ");
+    // for (uint32_t i = 0; i < xp_obj_len; i++) {
+    //     if (!is_cksum_valid(xp_obj[i])) {
+    //         printf("FAILED.\n");
+    //         printf("An Ephemeral object used by this checkpoint is malformed. Going back to look at the previous checkpoint instead.\n");
             
-            // TODO: Handle case where data for a given checkpoint is malformed
-            printf("END: Handling of this case has not yet been implemented.\n");
-            return 0;
-        }
-    }
-    printf("OK.\n");
+    //         // TODO: Handle case where data for a given checkpoint is malformed
+    //         printf("END: Handling of this case has not yet been implemented.\n");
+    //         return 0;
+    //     }
+    // }
+    // printf("OK.\n");
 
-    free(xp);
-    free(xp_desc);
+    // free(xp);
+    // free(xp_desc);
 
-    printf("\nDetails of the Ephemeral objects:\n");
-    printf("--------------------------------------------------------------------------------\n");
-    for (uint32_t i = 0; i < xp_obj_len; i++) {
-        print_obj_phys(xp_obj[i]);
-        printf("--------------------------------------------------------------------------------\n");
-    }
-    printf("\n");
+    // printf("\nDetails of the Ephemeral objects:\n");
+    // printf("--------------------------------------------------------------------------------\n");
+    // for (uint32_t i = 0; i < xp_obj_len; i++) {
+    //     print_obj_phys(xp_obj[i]);
+    //     printf("--------------------------------------------------------------------------------\n");
+    // }
+    // printf("\n");
 
     printf("The container superblock states that the container object map has Physical OID 0x%llx.\n", nxsb->nx_omap_oid);
 
@@ -603,7 +603,7 @@ int main(int argc, char** argv) {
     free(apsbs);
     free(nx_omap_btree);
     free(nx_omap);
-    free(xp_obj);
+    // free(xp_obj);
     free(nxsb);
     fclose(nx);
     printf("END: All done.\n");
