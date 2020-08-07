@@ -602,10 +602,21 @@ int main(int argc, char** argv) {
     }
 
     bool found_file_extent = false;
+    bool found_file_size = false;
+    uint64_t file_size = 0;
     for (j_rec_t** fs_rec_cursor = fs_records; *fs_rec_cursor; fs_rec_cursor++) {
         j_rec_t* fs_rec = *fs_rec_cursor;
         j_key_t* hdr = fs_rec->data;
-        if ( ((hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT)  ==  APFS_TYPE_FILE_EXTENT ) {
+        uint64_t obj_type = (hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT;
+
+        // Do we get an APFS_TYPE_INODE here?
+        if (obj_type == APFS_TYPE_INODE) {
+            j_inode_val_t* val = fs_rec->data + fs_rec->key_len;
+            found_file_size = true;
+            file_size = val->uncompressed_size;
+            fprintf(stderr, "\n\nGot an INODE in the records. Sz=%lld\n\n", file_size);
+        }
+        else if (obj_type  ==  APFS_TYPE_FILE_EXTENT) {
             found_file_extent = true;
             j_file_extent_val_t* val = fs_rec->data + fs_rec->key_len;
 
@@ -613,22 +624,36 @@ int main(int argc, char** argv) {
             uint64_t block_addr = val->phys_block_num;
 
             uint64_t extent_len_blocks = (val->len_and_flags & J_FILE_EXTENT_LEN_MASK) / nx_block_size;
-            for (uint64_t i = 0;   i < extent_len_blocks;   i++, block_addr++) {
+            uint64_t written = 0;
+            for (uint64_t i = 0; i < extent_len_blocks; i++, block_addr++) {
                 if (read_blocks(buffer, block_addr, 1) != 1) {
                     fprintf(stderr, "\n\nEncountered an error reading block %#llx (block %llu of %llu). Exiting.\n\n", block_addr, i+1, extent_len_blocks);
                     return -1;
                 }
                 
-                if (fwrite(buffer, nx_block_size, 1, stdout) != 1) {
+                // On the last block, if we have a file size, truncate to the appropriate partial block size
+                uint64_t write_len = nx_block_size;
+                if (i == extent_len_blocks - 1 && found_file_size)
+                {
+                    uint64_t len = file_size - written;
+                    if (len < 0 || len > nx_block_size)
+                        fprintf(stderr, "\n\nIncorrect last block size %llu (%llu, %llu)\n\n", len, file_size, written);
+                    else
+                        write_len = len;
+                }
+
+                if (fwrite(buffer, write_len, 1, stdout) != 1) {
                     fprintf(stderr, "\n\nEncountered an error writing block %llu of %llu to `stdout`. Exiting.\n\n", i+1, extent_len_blocks);
                     return -1;
                 }
+                written += nx_block_size;
             }
         }
     }
-    if (!found_file_extent) {
+    if (!found_file_size)
+        fprintf(stderr, "Could not find any file size for the specified path.\n");
+    if (!found_file_extent)
         fprintf(stderr, "Could not find any file extents for the specified path.\n");
-    }
 
     free_j_rec_array(fs_records);
     

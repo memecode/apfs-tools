@@ -38,15 +38,16 @@
  *      A pointer to an object map value corresponding to the unique object
  *      whose OID and XID satisfy the criteria described above for the
  *      parameters `oid` and `max_xid`. If no object exists with the given OID,
- *      a NULL pointer is returned.
+ *      or an error occurs, a NULL pointer is returned.
  *      This pointer must be freed when it is no longer needed.
  */
 omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid_t max_xid) {
     // Create a copy of the root node to use as the current node we're working with
+    btree_info_t* bt_info = NULL;
     btree_node_phys_t* node = malloc(nx_block_size);
     if (!node) {
-        fprintf(stderr, "\nABORT: get_btree_phys_omap_val: Could not allocate sufficient memory for `node`.\n");
-        exit(-1);
+        fprintf(stderr, "\nERROR: get_btree_phys_omap_val: Could not allocate sufficient memory for `node`.\n");
+        return NULL;
     }
     memcpy(node, root_node, nx_block_size);
 
@@ -56,10 +57,10 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
     char* val_end   = (char*)node + nx_block_size - sizeof(btree_info_t);
 
     // We'll need access to the B-tree info after discarding our copy of the root node
-    btree_info_t* bt_info = malloc(sizeof(btree_info_t));
+    bt_info = malloc(sizeof(btree_info_t));
     if (!bt_info) {
         fprintf(stderr, "\nABORT: get_btree_phys_omap_val: Could not allocate sufficient memory for `bt_info`.\n");
-        exit(-1);
+        goto onError;
     }
     memcpy(bt_info, val_end, sizeof(btree_info_t));
 
@@ -67,10 +68,7 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
     while (true) {
         if (!(node->btn_flags & BTNODE_FIXED_KV_SIZE)) {
             fprintf(stderr, "\nget_btree_phys_omap_val: Object map B-trees don't have variable size keys and values ... do they?\n");
-            
-            free(bt_info);
-            free(node);
-            return NULL;
+            goto onError;
         }
 
         // TOC entries are instances of `kvoff_t`
@@ -99,29 +97,23 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
         // `toc_entry` now points to the correct TOC entry to use; or
         // it points before `toc_start` if the desired (OID, XID) pair
         // does not exist in this B-tree.
-        if ((char*)toc_entry < toc_start) {
-            free(bt_info);
-            free(node);
-            return NULL;
-        }
+        if ((char*)toc_entry < toc_start)
+            goto onError;
 
         // If this is a leaf node, return the object map value
         if (node->btn_flags & BTNODE_LEAF) {
             // If the object doesn't have the specified OID, then no sufficient
             // object with that OID exists in the B-tree.
             omap_key_t* key = key_start + toc_entry->k;
-            if (key->ok_oid != oid) {
-                free(bt_info);
-                free(node);
-                return NULL;
-            }
+            if (key->ok_oid != oid)
+                goto onError;
 
             omap_val_t* val = val_end - toc_entry->v;
 
             omap_val_t* return_val = malloc(sizeof(omap_val_t));
             if (!return_val) {
                 fprintf(stderr, "\nABORT: get_btree_phys_omap_val: Could not allocate sufficient memory for `return_val`.\n");
-                exit(-1);
+                goto onError;
             }
             memcpy(return_val, val, sizeof(omap_val_t));
             
@@ -135,18 +127,23 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
         
         if (read_blocks(node, *child_node_addr, 1) != 1) {
             fprintf(stderr, "\nABORT: get_btree_phys_omap_val: Failed to read block 0x%llx.\n", *child_node_addr);
-            exit(-1);
+            goto onError;
         }
 
         if (!is_cksum_valid(node)) {
             fprintf(stderr, "\nABORT: get_btree_phys_omap_val: Checksum of node at block 0x%llx did not validate.\n", *child_node_addr);
-            exit(-1);
+            goto onError;
         }
 
         toc_start = (char*)(node->btn_data) + node->btn_table_space.off;
         key_start = toc_start + node->btn_table_space.len;
         val_end   = (char*)node + nx_block_size;    // Always dealing with non-root node here
     }
+
+onError:
+    free(bt_info);
+    free(node);
+    return NULL;
 }
 
 /**
@@ -241,21 +238,24 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
      */
     uint32_t desc_path[vol_fs_root_node->btn_level + 1];
     uint16_t i = 0;     // `i` keeps tracks of how many descents we've made from the root node.
+    btree_node_phys_t* node = NULL;
+    j_rec_t** records = NULL;
+    btree_info_t* bt_info = NULL;
     
     // Initialise the array of records which will be returned to the caller
     size_t num_records = 0;
-    j_rec_t** records = malloc(sizeof(j_rec_t*));
+    records = malloc(sizeof(j_rec_t*));
     if (!records) {
         fprintf(stderr, "\nABORT: get_fs_records: Could not allocate sufficient memory for `records`.\n");
-        exit(-1);
+        goto onFatal;
     }
     records[0] = NULL;
 
     // Create a copy of the root node to use as the current node we're working with
-    btree_node_phys_t* node = malloc(nx_block_size);
+    node = malloc(nx_block_size);
     if (!node) {
         fprintf(stderr, "\nABORT: get_fs_records: Could not allocate sufficient memory for `node`.\n");
-        exit(-1);
+        goto onFatal;
     }
     memcpy(node, vol_fs_root_node, nx_block_size);
 
@@ -265,10 +265,10 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
     char* val_end   = (char*)node + nx_block_size - sizeof(btree_info_t);
 
     // We may need access to the B-tree info after discarding our copy of the root node
-    btree_info_t* bt_info = malloc(sizeof(btree_info_t));
+    bt_info = malloc(sizeof(btree_info_t));
     if (!bt_info) {
         fprintf(stderr, "\nABORT: get_fs_records: Could not allocate sufficient memory for `bt_info`.\n");
-        exit(-1);
+        goto onFatal;
     }
     memcpy(bt_info, val_end, sizeof(btree_info_t));
 
@@ -276,11 +276,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
     while (true) {
         if (node->btn_flags & BTNODE_FIXED_KV_SIZE) {
             fprintf(stderr, "\nget_fs_records: File-system root B-trees don't have fixed size keys and values ... do they?\n");
-            
-            free(bt_info);
-            free(node);
-            free_j_rec_array(records);
-            return NULL;
+            goto onFatal;
         }
 
         // TOC entries are instances of `kvloc_t`
@@ -317,10 +313,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
                     // we would've encountered it by now. Hence, this leaf node
                     // contains no entries with the given OID, and so no record
                     // with the given OID exists in the whole tree
-                    free(bt_info);
-                    free(node);
-                    free_j_rec_array(records);
-                    return NULL;
+                    goto onFatal;
                 }
 
                 // We just passed the entry we want to descend; backtrack
@@ -334,10 +327,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
         // it points before `toc_start` if no records with the
         // desired OID exist in this B-tree.
         if ((char*)toc_entry < toc_start) {
-            free(bt_info);
-            free(node);
-            free_j_rec_array(records);
-            return NULL;
+            goto onFatal;
         }
 
         // If this is a leaf node, then it contains the first record with the
@@ -353,21 +343,17 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
         omap_val_t* child_node_omap_val = get_btree_phys_omap_val(vol_omap_root_node, *child_node_virt_oid, max_xid);
         if (!child_node_omap_val) {
             fprintf(stderr, "get_fs_records: Need to descend to node with Virtual OID 0x%llx, but the file-system object map lists no objects with this Virtual OID.\n", *child_node_virt_oid);
-            
-            free(bt_info);
-            free(node);
-            free_j_rec_array(records);
-            return NULL;
+            goto onFatal;
         }
         
         if (read_blocks(node, child_node_omap_val->ov_paddr, 1) != 1) {
-            fprintf(stderr, "\nABORT: get_fs_records: Failed to read block 0x%llx.\n", child_node_omap_val->ov_paddr);
-            exit(-1);
+            fprintf(stderr, "ERROR: get_fs_records: Failed to read block 0x%llx.\n", child_node_omap_val->ov_paddr);
+            goto onFatal;
         }
 
         if (!is_cksum_valid(node)) {
             fprintf(stderr, "\nABORT: get_fs_records: Checksum of node at block 0x%llx did not validate.\n", child_node_omap_val->ov_paddr);
-            exit(-1);
+            goto onFatal;
         }
 
         toc_start = (char*)(node->btn_data) + node->btn_table_space.off;
@@ -401,11 +387,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
         for (i = 0; i <= vol_fs_root_node->btn_level; i++) {
             if (node->btn_flags & BTNODE_FIXED_KV_SIZE) {
                 fprintf(stderr, "\nget_fs_records: File-system root B-trees don't have fixed size keys and values ... do they?\n");
-                
-                free(bt_info);
-                free(node);
-                free_j_rec_array(records);
-                return NULL;
+                goto onFatal;
             }
 
             if (desc_path[i] >= node->btn_nkeys) {
@@ -452,7 +434,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
                 records[num_records] = malloc(sizeof(j_rec_t) + toc_entry->k.len + toc_entry->v.len);
                 if (!records[num_records]) {
                     fprintf(stderr, "\nABORT: get_fs_records: Could not allocate sufficient memory for `records[%lu]`.\n", num_records);
-                    exit(-1);
+                    goto onFatal;
                 }
                 
                 records[num_records]->key_len = toc_entry->k.len;
@@ -472,6 +454,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
                 records = realloc(records, (num_records + 1) * sizeof(j_rec_t*));
                 if (!records) {
                     fprintf(stderr, "\nABORT: get_fs_records: Could not allocate sufficient memory for `records`.\n");
+                    goto onFatal;
                 }
                 records[num_records] = NULL;
 
@@ -486,21 +469,17 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
             omap_val_t* child_node_omap_val = get_btree_phys_omap_val(vol_omap_root_node, *child_node_virt_oid, max_xid);
             if (!child_node_omap_val) {
                 fprintf(stderr, "get_fs_records: Need to descend to node with Virtual OID 0x%llx, but the file-system object map lists no objects with this Virtual OID.\n", *child_node_virt_oid);
-                
-                free(bt_info);
-                free(node);
-                free_j_rec_array(records);
-                return NULL;
+                goto onFatal;
             }
             
             if (read_blocks(node, child_node_omap_val->ov_paddr, 1) != 1) {
                 fprintf(stderr, "\nABORT: get_fs_records: Failed to read block 0x%llx.\n", child_node_omap_val->ov_paddr);
-                exit(-1);
+                goto onFatal;
             }
 
             if (!is_cksum_valid(node)) {
                 fprintf(stderr, "\nABORT: get_fs_records: Checksum of node at block 0x%llx did not validate.\n", child_node_omap_val->ov_paddr);
-                exit(-1);
+                goto onFatal;
             }
 
             toc_start = (char*)(node->btn_data) + node->btn_table_space.off;
@@ -508,6 +487,12 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
             val_end   = (char*)node + nx_block_size;    // Always dealing with non-root node here
         }
     }
+
+onFatal:
+    free(bt_info);
+    free(node);
+    free_j_rec_array(records);
+    return NULL;
 }
 
 #endif // APFS_FUNC_BTREE_H

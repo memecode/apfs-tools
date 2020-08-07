@@ -277,6 +277,7 @@ void print_j_inode_val(j_inode_val_t* val, bool has_xfields) {
     printf("\n");
 
     printf("Mode:   %s\n",  j_inode_mode_to_string(val->mode));
+    printf("Size:   %lld\n",  val->uncompressed_size);
     printf("\n");
 
     char* tmp_string = get_j_inode_internal_flags_string(val->internal_flags);

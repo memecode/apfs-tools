@@ -54,7 +54,7 @@ typedef struct {
     gid_t           group;
     mode_t          mode;
     uint16_t        pad1;
-    uint64_t        pad2;
+    uint64_t        uncompressed_size;
     uint8_t         xfields[];
 } __attribute__((packed))   j_inode_val_t;
 

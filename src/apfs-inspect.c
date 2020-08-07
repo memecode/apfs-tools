@@ -555,7 +555,7 @@ int main(int argc, char** argv) {
                     j_file_extent_val_t* val = fs_rec->data + fs_rec->key_len;
                 } break;
                 case APFS_TYPE_DIR_REC: {
-                    // Spec inorrectly says to use `j_drec_key_t`; see NOTE in `apfs/struct/j.h`
+                    // Spec incorrectly says to use `j_drec_key_t`; see NOTE in `apfs/struct/j.h`
                     j_drec_hashed_key_t*    key = fs_rec->data;
                     j_drec_val_t*           val = fs_rec->data + fs_rec->key_len;
                     print_j_drec_hashed_key(key);

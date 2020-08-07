@@ -33,7 +33,9 @@ void print_usage(char* program_name) {
     fprintf(stderr, "Usage:   %s <container> <volume ID> <path in volume>\nExample: %s /dev/disk0s2  0  /Users/john/Documents\n\n", program_name, program_name);
 }
 
-void print_fs_records(j_rec_t** fs_records) {
+void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
+                        btree_node_phys_t* vol_fs_root_node,
+                        j_rec_t** fs_records) {
     size_t num_records = 0;
 
     for (j_rec_t** fs_rec_cursor = fs_records; *fs_rec_cursor; fs_rec_cursor++) {
@@ -109,19 +111,91 @@ void print_fs_records(j_rec_t** fs_records) {
                 );
             } break;
             case APFS_TYPE_DIR_REC: {
-                // Spec inorrectly says to use `j_drec_key_t`; see NOTE in `apfs/struct/j.h`
+                // Spec incorrectly says to use `j_drec_key_t`; see NOTE in `apfs/struct/j.h`
                 j_drec_hashed_key_t*    key = fs_rec->data;
                 j_drec_val_t*           val = fs_rec->data + fs_rec->key_len;
+                uint64_t               type = val->flags & DREC_TYPE_MASK;
+                bool                is_file = type == DT_REG;
+
+                // Get the records for the target, to look up the file size
+                bool got_file_size = false;
+                uint64_t file_size = 0;
+                if (is_file)
+                {
+                    // printf("val->file_id=%llu\n", val->file_id);
+                    j_rec_t** fs_records = get_fs_records(vol_omap_root_node, vol_fs_root_node, val->file_id, (xid_t)(~0) );
+                    if (fs_records)
+                    {
+                        for (j_rec_t** fs_rec_cursor = fs_records; *fs_rec_cursor; fs_rec_cursor++) {
+                            j_rec_t* fs_rec = *fs_rec_cursor;
+                            j_key_t* hdr = fs_rec->data;
+                            uint64_t obj_type = (hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT;
+                            if (obj_type ==  APFS_TYPE_INODE)
+                            {
+                                j_inode_key_t* key = fs_rec->data;
+                                j_inode_val_t* val = fs_rec->data + fs_rec->key_len;
+                                got_file_size = true;
+                                file_size = val->uncompressed_size;
+                            }
+                            else if (obj_type == APFS_TYPE_XATTR)
+                            {
+                                j_xattr_key_t* key = fs_rec->data;
+                                j_xattr_val_t* val = fs_rec->data + fs_rec->key_len;
+                                bool embedded = (val->flags & XATTR_DATA_EMBEDDED) != 0;
+                                bool stream = (val->flags & XATTR_DATA_STREAM) != 0;
+                                #if 0
+                                printf("XATTR %s, %i %i, embedded=%i, stream=%i\n",
+                                    key->name,
+                                    val->flags, val->xdata_len,
+                                    embedded, stream);
+                                #endif
+                                if (embedded)
+                                {
+                                    // Data is stored directly in the record
+                                    j_xattr_dstream_t *dstream = (j_xattr_dstream_t*)val->xdata;
+                                    // The dstream seems to be "garbage". Not sure what to
+                                    // expect here...
+                                    #if 0
+                                    printf("DSTREAM id=%llx size=%llu allocated=%llu\n",
+                                        dstream->xattr_obj_id,
+                                        dstream->dstream.size,
+                                        dstream->dstream.alloced_size);
+                                    #endif
+                                }
+                            }
+                            else if (obj_type == APFS_TYPE_DSTREAM_ID)
+                            {
+                                j_dstream_id_key_t* key = fs_rec->data;
+                                j_dstream_id_val_t* val = fs_rec->data + fs_rec->key_len;
+                            }
+                            else if (obj_type == APFS_TYPE_FILE_EXTENT)
+                            {
+                                j_file_extent_key_t* key = fs_rec->data;
+                                j_file_extent_val_t* val = fs_rec->data + fs_rec->key_len;
+                            }
+                            else
+                            {
+                                //printf("obj_Type=%llu\n", obj_type);
+                            }
+                            
+                        }
+                        
+                        free_j_rec_array(fs_records);
+                    }
+                }
 
                 fprintf(stderr, "DIR REC"
                     " || %s"
                     " || target ID = %#8llx"
+                    " || file_size = %llu"
                     " || name = %s",
 
                     drec_val_to_short_type_string(val),
                     val->file_id,
+                    file_size,
                     key->name
                 );
+
             } break;
             case APFS_TYPE_DIR_STATS: {
                 j_dir_stats_key_t* key = fs_rec->data;
@@ -595,7 +669,7 @@ int main(int argc, char** argv) {
 
     fprintf(stderr, "\nRecords for file-system object %#llx -- `%s` --\n", fs_oid, path_stack);
     // `fs_records` now contains the records for the item at the specified path
-    print_fs_records(fs_records);
+    print_fs_records(fs_omap_btree, fs_root_btree, fs_records);
 
     free_j_rec_array(fs_records);
     
