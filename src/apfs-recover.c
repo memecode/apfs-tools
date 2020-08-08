@@ -609,14 +609,77 @@ int main(int argc, char** argv) {
         j_key_t* hdr = fs_rec->data;
         uint64_t obj_type = (hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT;
 
-        // Do we get an APFS_TYPE_INODE here?
-        if (obj_type == APFS_TYPE_INODE) {
+        if (obj_type == APFS_TYPE_INODE)
+        {
             j_inode_val_t* val = fs_rec->data + fs_rec->key_len;
-            found_file_size = true;
-            file_size = val->uncompressed_size;
-            fprintf(stderr, "\n\nGot an INODE in the records. Sz=%lld\n\n", file_size);
+            bool has_blob = fs_rec->val_len > sizeof(j_inode_val_t);
+            xf_blob_t *blob = val->xfields;
+            if (val->uncompressed_size > 0)
+            {
+                found_file_size = true;
+                file_size = val->uncompressed_size;
+            }
+
+            fprintf(stderr, "Got an INODE in the records. Sz=%lld. has_blob=%i\n",
+                file_size,
+                has_blob);
+            if (has_blob)
+            {
+                // fprintf(stderr, "blob=%i,%i\n", blob->xf_num_exts, blob->xf_used_data);
+
+                #if 0 // dump bytes...
+                for (int i=0; i<blob->xf_used_data; i++)
+                {
+                    fprintf(stderr, "[%i]=%i 0x%x '%c'\n", i,
+                        blob->xf_data[i], blob->xf_data[i],
+                        blob->xf_data[i] < ' ' ? '.' : blob->xf_data[i]);
+                }
+                #endif
+
+                int offset = 0;
+                int field_size = sizeof(x_field_t) * blob->xf_num_exts;
+                for (int i=0; i<blob->xf_num_exts; i++)
+                {
+                    x_field_t *fld = blob->xf_data + (i * sizeof(x_field_t));
+                    // fprintf(stderr, "fld=flags=%i,type=%i,sz=%i\n", fld->x_flags, fld->x_type, fld->x_size);
+                    if (fld->x_type < INO_EXT_TYPE_SNAP_XID || fld->x_type > INO_EXT_TYPE_RDEV)
+                    {
+                        fprintf(stderr, "invalid type\n");
+                        break;
+                    }
+
+                    if (fld->x_type == INO_EXT_TYPE_DSTREAM)
+                    {
+                        // Should be '0x1C8000' slightly less
+                        uint64_t data_offset = field_size + offset;
+                        j_dstream_t *dstream = blob->xf_data + data_offset;
+                        #if 0
+                        fprintf(stderr, "dstream@%llu: %llx,%llx,%llx,%llx,%llx\n",
+                            data_offset,
+                            dstream->size,
+                            dstream->alloced_size,
+                            dstream->default_crypto_id,
+                            dstream->total_bytes_written,
+                            dstream->total_bytes_read);
+                        #endif
+                        found_file_size = true;
+                        file_size = dstream->size;
+                    }
+
+                    offset += ((fld->x_size + 7) & ~7);
+                    if (offset > blob->xf_used_data)
+                    {
+                        fprintf(stderr, "offset out of range %i,%i\n", offset, blob->xf_used_data);
+                        break;
+                    }
+                }
+            }
         }
-        else if (obj_type  ==  APFS_TYPE_FILE_EXTENT) {
+        else if (obj_type == APFS_TYPE_XATTR)
+        {
+            fprintf(stderr, "Got an XATTR in the records.\n");
+        }
+        else if (obj_type == APFS_TYPE_FILE_EXTENT) {
             found_file_extent = true;
             j_file_extent_val_t* val = fs_rec->data + fs_rec->key_len;
 
@@ -639,7 +702,10 @@ int main(int argc, char** argv) {
                     if (len < 0 || len > nx_block_size)
                         fprintf(stderr, "\n\nIncorrect last block size %llu (%llu, %llu)\n\n", len, file_size, written);
                     else
+                    {
+                        // fprintf(stderr, "\n\nLast block (%llu -> %llu)\n\n", write_len, len);
                         write_len = len;
+                    }
                 }
 
                 if (fwrite(buffer, write_len, 1, stdout) != 1) {

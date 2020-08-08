@@ -186,15 +186,13 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
 
                 fprintf(stderr, "DIR REC"
                     " || %s"
-                    " || target ID = %#8llx"
-                    " || file_size = %llu"
-                    " || name = %s",
-
+                    " || target ID = %#8llx",
                     drec_val_to_short_type_string(val),
-                    val->file_id,
-                    file_size,
-                    key->name
+                    val->file_id
                 );
+                if (got_file_size)
+                    fprintf(stderr, " || file_size = %llu", file_size);
+                fprintf(stderr, " || name = %s", key->name);
 
             } break;
             case APFS_TYPE_DIR_STATS: {
