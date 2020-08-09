@@ -1,5 +1,5 @@
 ### Compiler/linker definitions ###
-FLAGS=-std=c99 -Werror -Wall -Wextra -Wno-incompatible-pointer-types -Wno-multichar \
+FLAGS=-std=c99 -Werror -g -Wall -Wextra -Wno-incompatible-pointer-types -Wno-multichar \
 -Wno-unused-variable
 CC=gcc
 CFLAGS=$(FLAGS)

@@ -38,7 +38,7 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
                         j_rec_t** fs_records) {
     size_t num_records = 0;
 
-    for (j_rec_t** fs_rec_cursor = fs_records; *fs_rec_cursor; fs_rec_cursor++) {
+    for (j_rec_t** fs_rec_cursor = fs_records; fs_rec_cursor && *fs_rec_cursor; fs_rec_cursor++) {
         num_records++;
         j_rec_t* fs_rec = *fs_rec_cursor;
 
@@ -120,6 +120,7 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
                 // Get the records for the target, to look up the file size
                 bool got_file_size = false;
                 uint64_t file_size = 0;
+                #if 0
                 if (is_file)
                 {
                     // printf("val->file_id=%llu\n", val->file_id);
@@ -183,6 +184,10 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
                         free_j_rec_array(fs_records);
                     }
                 }
+                #else
+                (void)vol_omap_root_node;
+                (void)vol_fs_root_node;
+                #endif
 
                 fprintf(stderr, "DIR REC"
                     " || %s"
@@ -641,7 +646,7 @@ int main(int argc, char** argv) {
             j_rec_t* fs_rec = *fs_rec_cursor;
             j_key_t* hdr = fs_rec->data;
             if ( ((hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT)  ==  APFS_TYPE_DIR_REC ) {
-                j_drec_hashed_key_t* key = fs_rec->data;   
+                j_drec_hashed_key_t* key = fs_rec->data;
                 if (strcmp((char*)key->name, path_element) == 0) {
                     matching_record_index = fs_rec_cursor - fs_records;
                     break;
@@ -661,6 +666,7 @@ int main(int argc, char** argv) {
 
         // Get the records for the target
         fs_oid = val->file_id;
+        printf("path '%s' = %lld\n", path_element, fs_oid);
         free_j_rec_array(fs_records);
         fs_records = get_fs_records(fs_omap_btree, fs_root_btree, fs_oid, (xid_t)(~0) );
     }

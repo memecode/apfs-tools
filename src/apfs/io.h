@@ -72,24 +72,25 @@ void report_fopen_error() {
  *              (a non-negative value). On failure, a negative value.
  */
 size_t read_blocks(void* buffer, long start_block, size_t num_blocks) {
+    printf("    phys=%li\n", start_block * nx_block_size);
     if (fseek(nx, start_block * nx_block_size, SEEK_SET) == -1) {
         // An error occurred.
         printf("FAILED: read_blocks: ");
         switch (errno) {
             case EBADF:
-                printf("The file `%s` cannot be seeked through.\n", nx_path);
+                fprintf(stderr, "The file `%s` cannot be seeked through.\n", nx_path);
                 break;
             case EINVAL:
-                printf("The specified starting block address, 0x%lx, is invalid, as it lies outside of the file `%s`.\n", start_block, nx_path);
+                fprintf(stderr, "The specified starting block address, 0x%lx, is invalid, as it lies outside of the file `%s`.\n", start_block, nx_path);
                 break;
             case EOVERFLOW:
-                printf("The specified starting block address, 0x%lx, exceeds %lu bits in length, which would result in an overflow.\n", start_block, 8 * sizeof(long));
+                fprintf(stderr, "The specified starting block address, 0x%lx, exceeds %lu bits in length, which would result in an overflow.\n", start_block, 8 * sizeof(long));
                 break;
             case ESPIPE:
-                printf("The data stream associated with the file `%s` is a pipe or FIFO, and thus cannot be seeked through.\n", nx_path);
+                fprintf(stderr, "The data stream associated with the file `%s` is a pipe or FIFO, and thus cannot be seeked through.\n", nx_path);
                 break;
             default:
-                printf("Unknown error.\n");
+                fprintf(stderr, "Unknown error.\n");
                 break;
         }
         return -1;
@@ -98,20 +99,21 @@ size_t read_blocks(void* buffer, long start_block, size_t num_blocks) {
     size_t num_blocks_read = fread(buffer, nx_block_size, num_blocks, nx);
     if (num_blocks_read != num_blocks) {
         // An error occured or we reached end-of-file.
-        
+
         // NOTE: This is intended to act as an `assert` statement with a message
         if (!ferror(nx) && !feof(nx)) {
             fprintf(stderr, "ABORT: read_blocks: Unexpected beaviour --- `fread` read fewer blocks than expected, but `feof` did not report EOF and `ferror` did not detect an error.\n\n");
-            exit(-1);
+            return -2;
         }
         
         if (ferror(nx)) {
-            printf("FAILED: read_blocks: An unknown error occurred whilst reading from the stream.\n");
-            return -1;
+            fprintf(stderr, "FAILED: read_blocks: An unknown error occurred whilst reading from the stream.\n");
+            return -3;
         }
 
         assert(feof(nx));
-        printf("read_blocks: Reached end-of-file after reading %lu blocks.\n", num_blocks_read);
+        // printf("read_blocks: Reached end-of-file after reading %lu blocks.\n", num_blocks_read);
+        printf("num_blocks_read=%lli @ 0x%llx\n", (uint64_t)num_blocks_read, (uint64_t)start_block);
     }
     return num_blocks_read;
 }
