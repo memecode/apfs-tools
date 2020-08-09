@@ -355,6 +355,7 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
         }
 
         if (desc_path[i] >= node->btn_nkeys) {
+            desc_path[i]--;
             toc_entry--;
         }
 
