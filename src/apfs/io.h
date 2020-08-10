@@ -72,7 +72,6 @@ void report_fopen_error() {
  *              (a non-negative value). On failure, a negative value.
  */
 size_t read_blocks(void* buffer, long start_block, size_t num_blocks) {
-    printf("    phys=%li\n", start_block * nx_block_size);
     if (fseek(nx, start_block * nx_block_size, SEEK_SET) == -1) {
         // An error occurred.
         printf("FAILED: read_blocks: ");

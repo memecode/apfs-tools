@@ -43,7 +43,6 @@
  */
 omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid_t max_xid) {
     // Create a copy of the root node to use as the current node we're working with
-    bool debug = oid == 295949;
     btree_info_t* bt_info = NULL;
     btree_node_phys_t* node = malloc(nx_block_size);
 
@@ -75,7 +74,6 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
 
         // TOC entries are instances of `kvoff_t`
         kvoff_t* toc_entry = toc_start;
-        if (debug) printf("\t%s:%i - toc_entry->v=%i %lld\n", __func__, __LINE__, toc_entry->v, oid);
 
         // Find the correct TOC entry, i.e. the last TOC entry whose:
         // - OID doesn't exceed the given OID; or
@@ -83,7 +81,6 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
         uint32_t i;
         for (i = 0;    i < node->btn_nkeys;    i++, toc_entry++) {
             omap_key_t* key = key_start + toc_entry->k;
-            if (debug) printf("\t%s:%i - key->ok_oid=%lli oid=%lld\n", __func__, __LINE__, key->ok_oid, oid);
             if (key->ok_oid > oid) {
                 toc_entry--;
                 break;
@@ -133,9 +130,6 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
         // Else, read the corresponding child node into memory and loop
         paddr_t* child_node_addr = val_end - toc_entry->v;
         size_t result;
-
-        if (debug)
-            printf("    toc_entry->v=%i Node<=%llu,0x%llx\n", toc_entry->v, *child_node_addr, *child_node_addr);
         if ((result = read_blocks(node, *child_node_addr, 1)) != 1) {
             fprintf(stderr, "ABORT: get_btree_phys_omap_val: Failed to read block 0x%llx (%i).\n", *child_node_addr, (int)result);
             goto onError;
@@ -252,7 +246,6 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
     btree_node_phys_t* node = NULL;
     j_rec_t** records = NULL;
     btree_info_t* bt_info = NULL;
-    bool debug = oid == 3307851;
 
     // Initialise the array of records which will be returned to the caller
     size_t num_records = 0;
@@ -299,14 +292,11 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
             j_key_t* key = key_start + toc_entry->k.off;
             oid_t record_oid = key->obj_id_and_type & OBJ_ID_MASK;
 
-            if (debug) printf("\t%s:%i - [%i][%i] record_oid=%lli oid=%lld toc_entry->v.off=%i\n",
-                __func__, __LINE__, i, desc_path[i], record_oid, oid, toc_entry->v.off);
             if (record_oid == oid) {
                 if (node->btn_flags & BTNODE_LEAF) {
                     // This is the first entry in this leaf node with the given
                     // OID, and thus the first record in the whole tree with
                     // the given OID
-                    if (debug) printf("\t%s:%i - break, got leaf\n", __func__, __LINE__);
                     break;
                 }
 
@@ -319,7 +309,6 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
                 // ... unless this is the first entry in the node, in which
                 // case, backtracking is impossible, and this is the entry we
                 // should descend
-                if (debug) printf("\t%s:%i - break\n", __func__, __LINE__);
                 break;
             }
 
@@ -361,8 +350,6 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
 
         // Else, read the corresponding child node into memory and loop
         oid_t* child_node_virt_oid = val_end - toc_entry->v.off;
-        if (debug) printf("\t%s:%i - *child_node_virt_oid=%lli toc_entry->v.off=%i\n", 
-            __func__, __LINE__, *child_node_virt_oid, toc_entry->v.off);
         omap_val_t* child_node_omap_val = get_btree_phys_omap_val(vol_omap_root_node, *child_node_virt_oid, max_xid);
         if (!child_node_omap_val) {
             fprintf(stderr, "get_fs_records: Need to descend to node with Virtual OID 0x%llx, but the file-system object map lists no objects with this Virtual OID.\n", *child_node_virt_oid);
@@ -407,22 +394,16 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
         key_start = toc_start + node->btn_table_space.len;
         val_end   = (char*)node + nx_block_size - sizeof(btree_info_t);
 
-        if (debug) printf("\t%s:%i vol_fs_root_node->btn_level=%i\n", __func__, __LINE__, vol_fs_root_node->btn_level);
         for (i = 0; i <= vol_fs_root_node->btn_level; i++) {
-
-            if (debug) printf("\t%s:%i i=%i\n", __func__, __LINE__, i);
-
 
             if (node->btn_flags & BTNODE_FIXED_KV_SIZE) {
                 fprintf(stderr, "\nget_fs_records: File-system root B-trees don't have fixed size keys and values ... do they?\n");
                 goto onFatal;
             }
 
-            if (debug) printf("\t%s:%i desc_path[i]=%i node->btn_nkeys=%i\n", __func__, __LINE__, desc_path[i], node->btn_nkeys);
             if (desc_path[i] >= node->btn_nkeys) {
                 // We've already gone through the last entry in this node.
 
-                if (debug) printf("\t%s:%i node->btn_flags=%x\n", __func__, __LINE__, node->btn_flags);
                 if (node->btn_flags & BTNODE_ROOT) {
                     // We've gone through the whole tree; return the results
                     free(node);
