@@ -96,13 +96,9 @@ char* get_nx_readonly_compatible_features_string(nx_superblock_t* nxsb) {
     char* no_flags_string = "- No read-only compatible feature flags are set.\n";
     size_t no_flags_string_len = strlen(no_flags_string);
     
-    const int NUM_FLAGS = 0;
-    uint64_t flag_constants[] = {
-        // empty
-    };
-    char* flag_strings[] = {
-        // empty
-    };
+    const int NUM_FLAGS = 0; // Um??
+    uint64_t *flag_constants = NULL;
+    char** flag_strings = NULL;
 
     // Allocate sufficient memory for the result string
     size_t max_mem_required = 0;
@@ -299,7 +295,7 @@ char* get_nx_flags_string(nx_superblock_t* nxsb) {
  * superblock, including the data in its header.
  */
 void print_nx_superblock(nx_superblock_t* nxsb) {
-    print_obj_phys(nxsb); // `nxsb` is equivalent to `&(nxsb->nx_o)`.
+    print_obj_phys((obj_phys_t*) nxsb); // `nxsb` is equivalent to `&(nxsb->nx_o)`.
 
     char magic_string[] = {
         (char)nxsb->nx_magic,
@@ -449,7 +445,7 @@ char* get_cpm_flags_string(checkpoint_map_phys_t* cpm) {
  * cpm:     A pointer to the checkpoint-mapping block in question.
  */
 void print_checkpoint_map_phys(checkpoint_map_phys_t* cpm) {
-    print_obj_phys(cpm);    // `cpm` as the same as `&(cpm->cpm_o)`
+    print_obj_phys((obj_phys_t*)cpm);    // `cpm` as the same as `&(cpm->cpm_o)`
     
     char* flags_string = get_cpm_flags_string(cpm);
     printf("Flags:\n%s",    flags_string);

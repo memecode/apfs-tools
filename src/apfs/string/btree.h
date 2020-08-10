@@ -194,7 +194,7 @@ void print_btree_info(btree_info_t* bt_info) {
  * relating to the entire tree that it is the root node of will also be printed.
  */
 void print_btree_node_phys(btree_node_phys_t* btn) {
-    print_obj_phys(btn);    // `btn` equals `&(btn->btn_o)`.
+    print_obj_phys((obj_phys_t*)btn);    // `btn` equals `&(btn->btn_o)`.
 
     char* flags_string = get_btn_flags_string(btn);
     printf("Flags:                          %s\n",  flags_string);
@@ -211,9 +211,9 @@ void print_btree_node_phys(btree_node_phys_t* btn) {
     printf("- Offset from start of keys area:       0x%x = %u\n",   btn->btn_free_space.off,    btn->btn_free_space.off);
     printf("- Length (bytes):                       0x%x = %u\n",   btn->btn_free_space.len,    btn->btn_free_space.len);
 
-    if (is_btree_node_phys_root(btn)) {
+    if (is_btree_node_phys_root((obj_phys_t*)btn)) {
         printf("\n");
-        print_btree_info((char*)btn + nx_block_size - sizeof(btree_info_t));
+        print_btree_info((btree_info_t*) ((char*)btn + nx_block_size - sizeof(btree_info_t)));
     }
 }
 

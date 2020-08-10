@@ -97,7 +97,7 @@ char* get_om_flags_string(omap_phys_t* omap) {
  * map, including the data in its header.
  */
 void print_omap_phys(omap_phys_t* omap) {
-    print_obj_phys(omap);
+    print_obj_phys((obj_phys_t*) omap);
 
     char* flags_string = get_om_flags_string(omap);
     printf("Flags:\n%s", flags_string);

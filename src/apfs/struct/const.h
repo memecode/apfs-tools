@@ -144,13 +144,21 @@ typedef enum {
 
 typedef uint16_t    mode_t;
 
+#ifndef S_IFMT
 #define S_IFMT      0170000
+#endif
 
 #define S_IFIFO     0010000
+#ifndef S_IFCHR
 #define S_IFCHR     0020000
+#endif
+#ifndef S_IFDIR
 #define S_IFDIR     0040000
+#endif
 #define S_IFBLK     0060000
+#ifndef S_IFREG
 #define S_IFREG     0100000
+#endif
 #define S_IFLNK     0120000
 #define S_IFSOCK    0140000
 #define S_IFWHT     0160000

@@ -90,12 +90,12 @@ uint64_t compute_block_cksum(uint32_t* block) {
 /**
  * Determine whether a given APFS block has a valid checksum.
  */
-char is_cksum_valid(uint32_t* block) {
+char is_cksum_valid(void* block) {
     // TODO: The following "simple" implementation doesn't appear to work.
     // return fletcher_cksum(block, 0) == 0;
 
     // The following gives the correct result.
-    return compute_block_cksum(block) == *(uint64_t*)block; // dereference of cast give
+    return compute_block_cksum((uint32_t*)block) == *(uint64_t*)block; // dereference of cast give
 }
 
 #endif // APFS_FUNC_CKSUM_H

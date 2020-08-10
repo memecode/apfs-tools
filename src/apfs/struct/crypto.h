@@ -15,7 +15,7 @@
 
 typedef struct {
     j_key_t     hdr;
-} __attribute__((packed))   j_crypto_key_t;
+} ATTR_PACK1   j_crypto_key_t;
 
 /** `wrapped_crypto_state_t` --- forward declared for `j_crypto_val_t` **/
 
@@ -28,7 +28,7 @@ typedef struct {
     cp_key_revision_t   key_revision;
     uint16_t            key_len;
     uint8_t             persistent_key[0];
-} __attribute__((aligned(2), packed))   wrapped_crypto_state_t;
+}	ATTR_PACK2			wrapped_crypto_state_t;
 
 #define CP_MAX_WRAPPEDKEYSIZE   128
 
@@ -37,7 +37,7 @@ typedef struct {
 typedef struct {
     uint32_t                refcnt;
     wrapped_crypto_state_t  state;
-} __attribute__((aligned(4), packed))   j_crypto_val_t;
+}	ATTR_PACK4				j_crypto_val_t;
 
 /** `wrapped_meta_crypto_state_t` **/
 
@@ -48,7 +48,7 @@ typedef struct {
     cp_key_class_t      persistent_class;
     cp_key_os_version_t key_os_version;
     cp_key_revision_t   key_revision;
-} __attribute__((aligned(2), packed))     wrapped_meta_crypto_state_t;
+}	ATTR_PACK2			wrapped_meta_crypto_state_t;
 
 /** Protection Classes **/
 
@@ -73,7 +73,7 @@ typedef struct {
     uint16_t    ke_tag;
     uint16_t    ke_keylen;
     uint8_t     padding[4];
-    uint8_t     ke_keydata[];
+    uint8_t     ke_keydata[1];
 } keybag_entry_t;
 
 #define APFS_VOL_KEYBAG_ENTRY_MAX_SIZE      512
@@ -86,7 +86,7 @@ typedef struct {
     uint16_t        kl_nkeys;
     uint32_t        kl_nbytes;
     uint8_t         padding[8];
-    keybag_entry_t  kl_entries[];
+    keybag_entry_t  kl_entries[1];
 } kb_locker_t;
 
 #define APFS_KEYBAG_VERSION     2

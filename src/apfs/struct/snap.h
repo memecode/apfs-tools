@@ -13,7 +13,7 @@
 
 typedef struct {
     j_key_t     hdr;
-} __attribute__((packed))   j_snap_metadata_key_t;
+} ATTR_PACK1	j_snap_metadata_key_t;
 
 /** `j_snap_metadata_val_t` **/
 
@@ -27,7 +27,7 @@ typedef struct {
     uint32_t    flags;
     uint16_t    name_len;
     uint8_t     name[0];
-} __attribute__((packed))   j_snap_metadata_val_t;
+} ATTR_PACK1	j_snap_metadata_val_t;
 
 /** `j_snap_name_key_t` **/
 
@@ -35,13 +35,13 @@ typedef struct {
     j_key_t     hdr;
     uint16_t    name_len;
     uint8_t     name[0];
-} __attribute__((packed))   j_snap_name_key_t;
+} ATTR_PACK1	j_snap_name_key_t;
 
 /** `j_snap_name_val_t` **/
 
 typedef struct {
     xid_t   snap_xid;
-} __attribute__((packed))   j_snap_name_val_t;
+} ATTR_PACK1	j_snap_name_val_t;
 
 /** `snap_meta_flags` **/
 

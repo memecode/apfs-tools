@@ -9,11 +9,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <sys/errno.h>
+#ifdef _WIN32
+	typedef long off_t;
+	#include <stdint.h>
+	#include <inttypes.h>
+	#define ATTR_PACK1
+	#define ATTR_PACK2
+	#define ATTR_PACK4
+	#define ATTR_PACK8
+#else
+	#include <sys/errno.h>
+	#define ATTR_PACK1 __attribute__(((aligned(1),packed))
+	#define ATTR_PACK2 __attribute__(((aligned(2),packed))
+	#define ATTR_PACK4 __attribute__(((aligned(4),packed))
+	#define ATTR_PACK8 __attribute__(((aligned(8),packed))
+#endif
 
 char*   nx_path;
 FILE*   nx;
-size_t  nx_block_size = 4096;
+long	nx_block_size = 4096;
 
 void report_fopen_error() {
     switch (errno) {
@@ -36,7 +50,7 @@ void report_fopen_error() {
             fprintf(stderr, "This process is forbidden from opening any more file descriptors.\n");
             break;
         case ENAMETOOLONG:
-            fprintf(stderr, "The specified filepath or one of its componenets is too long.\n");
+            fprintf(stderr, "The specified filepath or one of its components is too long.\n");
             break;
         case ENOENT:
             fprintf(stderr, "The specified file does not exist.\n");
@@ -48,7 +62,7 @@ void report_fopen_error() {
             fprintf(stderr, "The device associated with the specified file does not exist.\n");
             break;
         case EOVERFLOW:
-            fprintf(stderr, "The specified file is a regular file, but its size exceeds %lu bytes, so is too large to be handled.\n", sizeof(off_t));
+            fprintf(stderr, "The specified file is a regular file, but its size exceeds %i bytes, so is too large to be handled.\n", (int)sizeof(off_t));
             break;
         case EILSEQ:
             fprintf(stderr, "The specified filepath does not match the encoding rules.\n");
@@ -71,9 +85,14 @@ void report_fopen_error() {
  * RETURN VALUE:    On success or partial success, the number of blocks read
  *              (a non-negative value). On failure, a negative value.
  */
-size_t read_blocks(void* buffer, long start_block, size_t num_blocks) {
-    printf("    phys=%li\n", start_block * nx_block_size);
-    if (fseek(nx, start_block * nx_block_size, SEEK_SET) == -1) {
+size_t read_blocks(void* buffer, int64_t start_block, size_t num_blocks) {
+	if (
+		#ifdef _WIN32
+		_fseeki64
+		#else
+		fseek
+		#endif
+		(nx, start_block * nx_block_size, SEEK_SET) == -1) {
         // An error occurred.
         printf("FAILED: read_blocks: ");
         switch (errno) {
@@ -81,10 +100,10 @@ size_t read_blocks(void* buffer, long start_block, size_t num_blocks) {
                 fprintf(stderr, "The file `%s` cannot be seeked through.\n", nx_path);
                 break;
             case EINVAL:
-                fprintf(stderr, "The specified starting block address, 0x%lx, is invalid, as it lies outside of the file `%s`.\n", start_block, nx_path);
+                fprintf(stderr, "The specified starting block address, 0x%" PRId64 ", is invalid, as it lies outside of the file `%s`.\n", start_block, nx_path);
                 break;
             case EOVERFLOW:
-                fprintf(stderr, "The specified starting block address, 0x%lx, exceeds %lu bits in length, which would result in an overflow.\n", start_block, 8 * sizeof(long));
+                fprintf(stderr, "The specified starting block address, 0x%" PRId64 ", exceeds %u bits in length, which would result in an overflow.\n", start_block, (int)(8 * sizeof(long)));
                 break;
             case ESPIPE:
                 fprintf(stderr, "The data stream associated with the file `%s` is a pipe or FIFO, and thus cannot be seeked through.\n", nx_path);

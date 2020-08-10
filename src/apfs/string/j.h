@@ -9,6 +9,10 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
+#ifdef _WIN32
+#define __STDC__ 0
+#include "const.h"
+#endif
 #include <sys/stat.h>
 
 /**
@@ -64,7 +68,7 @@ void print_j_key(j_key_t* key) {
 }
 
 void print_j_inode_key(j_inode_key_t* key) {
-    print_j_key(key);
+    print_j_key((j_key_t*)key);
 }
 
 char* j_inode_mode_to_string(mode_t mode) {
@@ -188,6 +192,16 @@ char* get_j_inode_bsd_flags_string(uint32_t bsd_flags) {
     
     const int NUM_FLAGS = 9;
     
+	#ifdef _WIN32
+        #define UF_NODUMP		0x00000001
+        #define UF_IMMUTABLE	0x00000002
+        #define UF_APPEND		0x00000004
+        #define UF_OPAQUE		0x00000008
+        #define UF_HIDDEN		0x00008000
+        #define SF_ARCHIVED		0x00010000
+        #define SF_IMMUTABLE	0x00020000
+        #define SF_APPEND		0x00040000
+	#endif
     uint64_t flag_constants[] = {
         UF_NODUMP,
         UF_IMMUTABLE,
@@ -301,7 +315,7 @@ void print_j_inode_val(j_inode_val_t* val, bool has_xfields) {
 }
 
 void print_j_file_extent_key(j_file_extent_key_t* key) {
-    print_j_key(key);   // `key` equals `&(key->hdr)`
+    print_j_key((j_key_t*)key);   // `key` equals `&(key->hdr)`
     printf("\n");
     printf("Extent offset within file:  %#llx\n", key->logical_addr);
 }
@@ -315,7 +329,7 @@ void print_j_file_extent_val(j_file_extent_val_t* val) {
 }
 
 void print_j_drec_hashed_key(j_drec_hashed_key_t* key) {
-    print_j_key(key);   // `key` equals `&(key->hdr)`
+    print_j_key((j_key_t*)key);   // `key` equals `&(key->hdr)`
     printf("\n");
 
     // 10-bit value; next smallest datatype is 16 bits

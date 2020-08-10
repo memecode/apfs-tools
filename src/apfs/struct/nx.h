@@ -139,6 +139,6 @@ typedef struct {
 typedef struct {
     paddr_t     dst_paddr;
     uint64_t    len;
-} __attribute__((packed))   evict_mapping_val_t;
+} ATTR_PACK1   evict_mapping_val_t;
 
 #endif // APFS_STRUCT_NX_H

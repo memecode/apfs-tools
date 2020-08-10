@@ -100,10 +100,10 @@ char* get_apfs_readonly_compatible_features_string(apfs_superblock_t* apsb) {
     size_t default_string_len = strlen(default_string);
     
     const int NUM_FLAGS = 0;
-    uint64_t flag_constants[] = {
+    uint64_t flag_constants[1] = { 0
         // empty
     };
-    char* flag_strings[] = {
+    char* flag_strings[1] = { 0
         // empty
     };
 
@@ -400,7 +400,7 @@ char* get_apfs_role_string(apfs_superblock_t* apsb) {
  * apsb:    A pointer to the APFS volume superblock in question.
  */
 void print_apfs_superblock(apfs_superblock_t* apsb) {
-    print_obj_phys(apsb);   // `apsb` equals `&(apsb->apfs_o)`
+    print_obj_phys((obj_phys_t*)apsb);   // `apsb` equals `&(apsb->apfs_o)`
     printf("\n");
 
     char magic_string[] = {

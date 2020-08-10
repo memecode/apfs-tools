@@ -1,9 +1,14 @@
 #include <stdio.h>
-#include <sys/errno.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#pragma pack(1)
+#include <sys/stat.h>
+#else
+#include <sys/errno.h>
+#endif
 #include "apfs/io.h"
 #include "apfs/func/boolean.h"
 #include "apfs/func/cksum.h"
@@ -26,6 +31,28 @@
 #include "apfs/string/fs.h"
 #include "apfs/string/j.h"
 
+#define BLOCK(base, idx) ((base) + ((idx) * nx_block_size))
+
+#ifdef _WIN32
+char *strsep(char** stringp, const char* delim)
+{
+  char* start = *stringp;
+  char* p;
+
+  p = (start != NULL) ? strpbrk(start, delim) : NULL;
+
+  if (p == NULL)
+    *stringp = NULL;
+  else
+  {
+    *p = '\0';
+    *stringp = p + 1;
+  }
+
+  return start;
+}
+#endif
+
 /**
  * Print usage info for this program.
  */
@@ -42,7 +69,7 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
         num_records++;
         j_rec_t* fs_rec = *fs_rec_cursor;
 
-        j_key_t* hdr = fs_rec->data;
+        j_key_t* hdr = (j_key_t*)fs_rec->data;
         fprintf(stderr, "- ");
 
         switch ( (hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT ) {
@@ -51,33 +78,33 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
             // in this switch-statement (though in practice it is not a
             // concern since every `case` here ends in a `break`.)
             case APFS_TYPE_SNAP_METADATA: {
-                j_snap_metadata_key_t* key = fs_rec->data;
-                j_snap_metadata_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_snap_metadata_key_t* key = (j_snap_metadata_key_t*) fs_rec->data;
+                j_snap_metadata_val_t* val = (j_snap_metadata_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "SNAP METADATA");
             } break;
             case APFS_TYPE_EXTENT: {
-                j_phys_ext_key_t* key = fs_rec->data;
-                j_phys_ext_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_phys_ext_key_t* key = (j_phys_ext_key_t*) fs_rec->data;
+                j_phys_ext_val_t* val = (j_phys_ext_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "EXTENT");
             } break;
             case APFS_TYPE_INODE: {
-                j_inode_key_t* key = fs_rec->data;
-                j_inode_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_inode_key_t* key = (j_inode_key_t*) fs_rec->data;
+                j_inode_val_t* val = (j_inode_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "INODE");
             } break;
             case APFS_TYPE_XATTR: {
-                j_xattr_key_t* key = fs_rec->data;
-                j_xattr_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_xattr_key_t* key = (j_xattr_key_t*) fs_rec->data;
+                j_xattr_val_t* val = (j_xattr_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "XATTR");
             } break;
             case APFS_TYPE_SIBLING_LINK: {
-                j_sibling_key_t* key = fs_rec->data;
-                j_sibling_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_sibling_key_t* key = (j_sibling_key_t*) fs_rec->data;
+                j_sibling_val_t* val = (j_sibling_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "SIBLING LINK");
             } break;
             case APFS_TYPE_DSTREAM_ID: {
-                j_dstream_id_key_t* key = fs_rec->data;
-                j_dstream_id_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_dstream_id_key_t* key = (j_dstream_id_key_t*) fs_rec->data;
+                j_dstream_id_val_t* val = (j_dstream_id_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "DSTREAM ID "
                     " || file ID = %#8llx"
                     " || ref. count = %u",
@@ -87,13 +114,13 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
                 );
             } break;
             case APFS_TYPE_CRYPTO_STATE: {
-                j_crypto_key_t* key = fs_rec->data;
-                j_crypto_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_crypto_key_t* key = (j_crypto_key_t*) fs_rec->data;
+                j_crypto_val_t* val = (j_crypto_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "CRYPTO STATE");
             } break;
             case APFS_TYPE_FILE_EXTENT: {
-                j_file_extent_key_t* key = fs_rec->data;
-                j_file_extent_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_file_extent_key_t* key = (j_file_extent_key_t*) fs_rec->data;
+                j_file_extent_val_t* val = (j_file_extent_val_t*) (fs_rec->data + fs_rec->key_len);
 
                 uint64_t extent_length_bytes = val->len_and_flags & J_FILE_EXTENT_LEN_MASK;
                 uint64_t extent_length_blocks = extent_length_bytes / nx_block_size;
@@ -112,8 +139,8 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
             } break;
             case APFS_TYPE_DIR_REC: {
                 // Spec incorrectly says to use `j_drec_key_t`; see NOTE in `apfs/struct/j.h`
-                j_drec_hashed_key_t*    key = fs_rec->data;
-                j_drec_val_t*           val = fs_rec->data + fs_rec->key_len;
+                j_drec_hashed_key_t*    key = (j_drec_hashed_key_t*) fs_rec->data;
+                j_drec_val_t*           val = (j_drec_val_t*) (fs_rec->data + fs_rec->key_len);
                 uint64_t               type = val->flags & DREC_TYPE_MASK;
                 bool                is_file = type == DT_REG;
 
@@ -201,19 +228,19 @@ void print_fs_records(  btree_node_phys_t* vol_omap_root_node,
 
             } break;
             case APFS_TYPE_DIR_STATS: {
-                j_dir_stats_key_t* key = fs_rec->data;
+                j_dir_stats_key_t* key = (j_dir_stats_key_t*) fs_rec->data;
                 // Spec incorrectly says to use `j_drec_val_t`; we use `j_dir_stats_val_t`
-                j_dir_stats_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_dir_stats_val_t* val = (j_dir_stats_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "DIR STATS");
             } break;
             case APFS_TYPE_SNAP_NAME: {
-                j_snap_name_key_t* key = fs_rec->data;
-                j_snap_name_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_snap_name_key_t* key = (j_snap_name_key_t*) fs_rec->data;
+                j_snap_name_val_t* val = (j_snap_name_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "SNAP NAME");
             } break;
             case APFS_TYPE_SIBLING_MAP: {
-                j_sibling_map_key_t* key = fs_rec->data;
-                j_sibling_map_val_t* val = fs_rec->data + fs_rec->key_len;
+                j_sibling_map_key_t* key = (j_sibling_map_key_t*) fs_rec->data;
+                j_sibling_map_val_t* val = (j_sibling_map_val_t*) (fs_rec->data + fs_rec->key_len);
                 fprintf(stderr, "SIBLING MAP");
             } break;
             case APFS_TYPE_INVALID:
@@ -283,7 +310,7 @@ int main(int argc, char** argv) {
     }
     fprintf(stderr, "OK.\n");
 
-    if (!is_nx_superblock(nxsb)) {
+    if (!is_nx_superblock((obj_phys_t*)nxsb)) {
         fprintf(stderr, "\nABORT: Block 0x0 isn't a container superblock.\n\n");
     }
     if (nxsb->nx_magic != NX_MAGIC) {
@@ -295,7 +322,7 @@ int main(int argc, char** argv) {
     uint32_t xp_desc_blocks = nxsb->nx_xp_desc_blocks & ~(1 << 31);
     fprintf(stderr, "- Its length is %u blocks.\n", xp_desc_blocks);
 
-    char (*xp_desc)[nx_block_size] = malloc(xp_desc_blocks * nx_block_size);
+    char *xp_desc = malloc(xp_desc_blocks * nx_block_size);
     if (!xp_desc) {
         fprintf(stderr, "ABORT: Could not allocate sufficient memory for %u blocks.\n", xp_desc_blocks);
         return -1;
@@ -326,25 +353,26 @@ int main(int argc, char** argv) {
     xid_t max_xid = ~0;     // `~0` is the highest possible XID
 
     for (uint32_t i = 0; i < xp_desc_blocks; i++) {
-        if (!is_cksum_valid(xp_desc[i])) {
+		char *xp_desc_cur = BLOCK(xp_desc, i);
+        if (!is_cksum_valid(xp_desc_cur)) {
             fprintf(stderr, "- Block at index %u within this area failed checksum validation. Skipping it.\n", i);
             continue;
         }
         
-        if (is_nx_superblock(xp_desc[i])) {
-            if ( ((nx_superblock_t*)xp_desc[i])->nx_magic  !=  NX_MAGIC ) {
+        if (is_nx_superblock((obj_phys_t*)xp_desc_cur)) {
+            if ( ((nx_superblock_t*)xp_desc_cur)->nx_magic  !=  NX_MAGIC ) {
                 fprintf(stderr, "- Container superblock at index %u within this area is malformed; incorrect magic number. Skipping it.\n", i);
                 continue;
             }
 
             if (
-                    ( ((nx_superblock_t*)xp_desc[i])->nx_o.o_xid  >  xid_latest_nx )
-                    && ( ((nx_superblock_t*)xp_desc[i])->nx_o.o_xid  <= max_xid  )
+                    ( ((nx_superblock_t*)xp_desc_cur)->nx_o.o_xid  >  xid_latest_nx )
+                    && ( ((nx_superblock_t*)xp_desc_cur)->nx_o.o_xid  <= max_xid  )
             ) {
                 i_latest_nx = i;
-                xid_latest_nx = ((nx_superblock_t*)xp_desc[i])->nx_o.o_xid;
+                xid_latest_nx = ((nx_superblock_t*)xp_desc_cur)->nx_o.o_xid;
             }
-        } else if (!is_checkpoint_map_phys(xp_desc[i])) {
+        } else if (!is_checkpoint_map_phys((obj_phys_t*)xp_desc_cur)) {
             fprintf(stderr, "- Block at index %u within this area is not a container superblock or checkpoint map. Skipping it.\n", i);
             continue;
         }
@@ -358,7 +386,7 @@ int main(int argc, char** argv) {
     // Don't need a copy of the block 0x0 NXSB which is stored in `nxsb`
     // anymore; replace that data with the latest NXSB.
     // This also lets us avoid repeatedly casting to `nx_superblock_t*`.
-    memcpy(nxsb, xp_desc[i_latest_nx], sizeof(nx_superblock_t));
+    memcpy(nxsb, xp_desc + (i_latest_nx*nx_block_size), sizeof(nx_superblock_t));
 
     fprintf(stderr, "- It lies at index %u within the checkpoint descriptor area.\n", i_latest_nx);
     fprintf(stderr, "- The corresponding checkpoint starts at index %u within the checkpoint descriptor area, and spans %u blocks.\n\n", nxsb->nx_xp_desc_index, nxsb->nx_xp_desc_len);
@@ -370,7 +398,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Loading the corresponding checkpoint ... ");
     
     // The array `xp` will comprise the blocks in the checkpoint, in order.
-    char (*xp)[nx_block_size] = malloc(nxsb->nx_xp_desc_len * nx_block_size);
+    char *xp = malloc(nxsb->nx_xp_desc_len * nx_block_size);
     if (!xp) {
         fprintf(stderr, "\nABORT: Couldn't allocate sufficient memory.\n");
         return -1;
@@ -378,14 +406,14 @@ int main(int argc, char** argv) {
 
     if (nxsb->nx_xp_desc_index + nxsb->nx_xp_desc_len <= xp_desc_blocks) {
         // The simple case: the checkpoint is already contiguous in `xp_desc`.
-        memcpy(xp, xp_desc[nxsb->nx_xp_desc_index], nxsb->nx_xp_desc_len * nx_block_size);
+        memcpy(xp, BLOCK(xp_desc, nxsb->nx_xp_desc_index), nxsb->nx_xp_desc_len * nx_block_size);
     } else {
         // The case where the checkpoint wraps around from the end of the
         // checkpoint descriptor area to the start.
         uint32_t segment_1_len = xp_desc_blocks - nxsb->nx_xp_desc_index;
         uint32_t segment_2_len = nxsb->nx_xp_desc_len - segment_1_len;
-        memcpy(xp,                 xp_desc + nxsb->nx_xp_desc_index, segment_1_len * nx_block_size);
-        memcpy(xp + segment_1_len, xp_desc,                          segment_2_len * nx_block_size);
+        memcpy(xp, BLOCK(xp_desc, nxsb->nx_xp_desc_index), segment_1_len * nx_block_size);
+        memcpy(BLOCK(xp, segment_1_len), xp_desc, segment_2_len * nx_block_size);
     }
     fprintf(stderr, "OK.\n");
     
@@ -398,24 +426,24 @@ int main(int argc, char** argv) {
     uint32_t xp_obj_len = 0;    // This variable will equal the number of
     // checkpoint-mappings = no. of Ephemeral objects used by this checkpoint.
     for (uint32_t i = 0; i < nxsb->nx_xp_desc_len; i++) {
-        if (is_checkpoint_map_phys(xp[i])) {
-            xp_obj_len += ((checkpoint_map_phys_t*)xp[i])->cpm_count;
+        if (is_checkpoint_map_phys((obj_phys_t*)BLOCK(xp,i))) {
+            xp_obj_len += ((checkpoint_map_phys_t*)BLOCK(xp,i))->cpm_count;
         }
     }
     fprintf(stderr, "- There are %u checkpoint-mappings in this checkpoint.\n\n", xp_obj_len);
 
     fprintf(stderr, "Reading the Ephemeral objects used by this checkpoint ... ");
-    char (*xp_obj)[nx_block_size] = malloc(xp_obj_len * nx_block_size);
+    char **xp_obj = malloc(xp_obj_len * nx_block_size);
     if (!xp_obj) {
         fprintf(stderr, "\nABORT: Could not allocate sufficient memory for `xp_obj`.\n");
         return -1;
     }
     uint32_t num_read = 0;
     for (uint32_t i = 0; i < nxsb->nx_xp_desc_len; i++) {
-        if (is_checkpoint_map_phys(xp[i])) {
-            checkpoint_map_phys_t* xp_map = xp[i];  // Avoid lots of casting
+        if (is_checkpoint_map_phys((obj_phys_t*)BLOCK(xp,i))) {
+            checkpoint_map_phys_t* xp_map = (checkpoint_map_phys_t*) BLOCK(xp,i);  // Avoid lots of casting
             for (uint32_t j = 0; j < xp_map->cpm_count; j++) {
-                if (read_blocks(xp_obj[num_read], xp_map->cpm_map[j].cpm_paddr, 1) != 1) {
+                if (read_blocks(BLOCK(xp_obj, num_read), xp_map->cpm_map[j].cpm_paddr, 1) != 1) {
                     fprintf(stderr, "\nABORT: Failed to read block 0x%llx.\n", xp_map->cpm_map[j].cpm_paddr);
                     return -1;
                 }
@@ -428,7 +456,7 @@ int main(int argc, char** argv) {
 
     fprintf(stderr, "Validating the Ephemeral objects ... ");
     for (uint32_t i = 0; i < xp_obj_len; i++) {
-        if (!is_cksum_valid(xp_obj[i])) {
+        if (!is_cksum_valid(BLOCK(xp_obj, i))) {
             fprintf(stderr, "FAILED.\n");
             fprintf(stderr, "An Ephemeral object used by this checkpoint is malformed. Going back to look at the previous checkpoint instead.\n");
             
@@ -497,7 +525,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "\n");
 
     fprintf(stderr, "Reading the APFS volume superblocks ... ");
-    char (*apsbs)[nx_block_size] = malloc(nx_block_size * num_file_systems);
+    char *apsbs = malloc(nx_block_size * num_file_systems);
     if (!apsbs) {
         fprintf(stderr, "\nABORT: Could not allocate sufficient memory for `apsbs`.\n");
         return -1;
@@ -508,7 +536,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "\nABORT: No objects with OID 0x%llx exist in `nx_omap_btree`.\n", nxsb->nx_fs_oid[i]);
             return -1;
         }
-        if (read_blocks(apsbs + i, fs_val->ov_paddr, 1) != 1) {
+        if (read_blocks(BLOCK(apsbs, i), fs_val->ov_paddr, 1) != 1) {
             fprintf(stderr, "\nABORT: Failed to read block 0x%llx.\n", fs_val->ov_paddr);
             return -1;
         }
@@ -517,7 +545,7 @@ int main(int argc, char** argv) {
 
     fprintf(stderr, "Validating the APFS volume superblocks ... ");
     for (uint32_t i = 0; i < num_file_systems; i++) {
-        if (!is_cksum_valid(apsbs + i)) {
+        if (!is_cksum_valid(BLOCK(apsbs, i))) {
             fprintf(stderr, "FAILED.\n- The checksum of the APFS volume with OID 0x%llx did not validate.\n- Going back to look at the previous checkpoint instead.\n", nxsb->nx_fs_oid[i]);
 
             // TODO: Handle case where data for a given checkpoint is malformed
@@ -525,7 +553,7 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        if ( ((apfs_superblock_t*)(apsbs + i))->apfs_magic  !=  APFS_MAGIC ) {
+        if ( ((apfs_superblock_t*)BLOCK(apsbs, i))->apfs_magic  !=  APFS_MAGIC ) {
             fprintf(stderr, "FAILED.\n- The magic string of the APFS volume with OID 0x%llx did not validate.\n- Going back to look at the previous checkpoint instead.\n", nxsb->nx_fs_oid[i]);
 
             // TODO: Handle case where data for a given checkpoint is malformed
@@ -537,14 +565,14 @@ int main(int argc, char** argv) {
 
     fprintf(stderr, "\n Volume list\n================\n");
     for (uint32_t i = 0; i < num_file_systems; i++) {
-        fprintf(stderr, "%2u: %s\n", i, ((apfs_superblock_t*)(apsbs + i))->apfs_volname);
+        fprintf(stderr, "%2u: %s\n", i, ((apfs_superblock_t*)BLOCK(apsbs, i))->apfs_volname);
     }
 
     if (volume_id >= num_file_systems) {
         fprintf(stderr, "The specified volume ID (%u) does not exist in the list above. Exiting.\n", volume_id);
         return 0;
     }
-    apfs_superblock_t* apsb = apsbs + volume_id;
+    apfs_superblock_t* apsb = (apfs_superblock_t*) BLOCK(apsbs, volume_id);
 
     fprintf(stderr, "The volume object map has Physical OID 0x%llx.\n", apsb->apfs_omap_oid);
 
@@ -641,12 +669,12 @@ int main(int argc, char** argv) {
             continue;
         }
         
-        signed int matching_record_index = -1;
+        int64_t matching_record_index = -1;
         for (j_rec_t** fs_rec_cursor = fs_records; *fs_rec_cursor; fs_rec_cursor++) {
             j_rec_t* fs_rec = *fs_rec_cursor;
-            j_key_t* hdr = fs_rec->data;
+            j_key_t* hdr = (j_key_t*) fs_rec->data;
             if ( ((hdr->obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT)  ==  APFS_TYPE_DIR_REC ) {
-                j_drec_hashed_key_t* key = fs_rec->data;
+                j_drec_hashed_key_t* key = (j_drec_hashed_key_t*) fs_rec->data;
                 if (strcmp((char*)key->name, path_element) == 0) {
                     matching_record_index = fs_rec_cursor - fs_records;
                     break;
@@ -662,7 +690,7 @@ int main(int argc, char** argv) {
 
         // Get the file ID of the matching record's target
         j_rec_t* fs_rec = fs_records[matching_record_index];
-        j_drec_val_t* val = fs_rec->data + fs_rec->key_len;
+        j_drec_val_t* val = (j_drec_val_t*) fs_rec->data + fs_rec->key_len;
 
         // Get the records for the target
         fs_oid = val->file_id;

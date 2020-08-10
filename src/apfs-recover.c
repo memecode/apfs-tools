@@ -1,5 +1,7 @@
 #include <stdio.h>
+#ifndef _WIN32
 #include <sys/errno.h>
+#endif
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
