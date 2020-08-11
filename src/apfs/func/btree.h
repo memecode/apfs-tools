@@ -367,10 +367,12 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
             goto onFatal;
         }
 
+        #if 0
         if (!is_cksum_valid(node)) {
-            fprintf(stderr, "\nABORT: get_fs_records: Checksum of node at block 0x%llx did not validate.\n", child_node_omap_val->ov_paddr);
+            fprintf(stderr, "\nABORT: get_fs_records:%i Checksum of node at block 0x%llx did not validate.\n", __LINE__, child_node_omap_val->ov_paddr);
             goto onFatal;
         }
+        #endif
 
         toc_start = (char*)(node->btn_data) + node->btn_table_space.off;
         key_start = toc_start + node->btn_table_space.len;
@@ -494,10 +496,12 @@ j_rec_t** get_fs_records(btree_node_phys_t* vol_omap_root_node, btree_node_phys_
                 goto onFatal;
             }
 
+            #if 0
             if (!is_cksum_valid(node)) {
-                fprintf(stderr, "\nABORT: get_fs_records: Checksum of node at block 0x%llx did not validate.\n", child_node_omap_val->ov_paddr);
+                fprintf(stderr, "\nABORT: get_fs_records:%i Checksum of node at block 0x%llx did not validate.\n", __LINE__, child_node_omap_val->ov_paddr);
                 goto onFatal;
             }
+            #endif
 
             toc_start = (char*)(node->btn_data) + node->btn_table_space.off;
             key_start = toc_start + node->btn_table_space.len;
