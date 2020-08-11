@@ -45,6 +45,7 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
     // Create a copy of the root node to use as the current node we're working with
     btree_info_t* bt_info = NULL;
     btree_node_phys_t* node = malloc(nx_block_size);
+    (void)max_xid;
 
     if (!node) {
         fprintf(stderr, "\nERROR: get_btree_phys_omap_val: Could not allocate sufficient memory for `node`.\n");
@@ -86,6 +87,7 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
                 break;
             }
             if (key->ok_oid == oid) {
+                /*
                 if (key->ok_xid > max_xid) {
                     toc_entry--;
                     break;
@@ -93,6 +95,8 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
                 if (key->ok_xid == max_xid) {
                     break;
                 }
+                */
+               break;
             }
         }
 
@@ -135,10 +139,12 @@ omap_val_t* get_btree_phys_omap_val(btree_node_phys_t* root_node, oid_t oid, xid
             goto onError;
         }
 
+        #if 0
         if (!is_cksum_valid(node)) {
-            fprintf(stderr, "ABORT: get_btree_phys_omap_val: Checksum of node at block 0x%llx did not validate.\n", *child_node_addr);
+            fprintf(stderr, "WARNING: get_btree_phys_omap_val: Checksum of node at block 0x%llx did not validate.\n", *child_node_addr);
             goto onError;
         }
+        #endif
 
         toc_start = (char*)(node->btn_data) + node->btn_table_space.off;
         key_start = toc_start + node->btn_table_space.len;

@@ -669,6 +669,8 @@ int main(int argc, char** argv) {
         printf("path '%s' = %lld\n", path_element, fs_oid);
         free_j_rec_array(fs_records);
         fs_records = get_fs_records(fs_omap_btree, fs_root_btree, fs_oid, (xid_t)(~0) );
+        if (!fs_records)
+            exit(-1);
     }
 
     fprintf(stderr, "\nRecords for file-system object %#llx -- `%s` --\n", fs_oid, path_stack);
