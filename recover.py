@@ -17,6 +17,8 @@ paths = []
 last_ts = 0.0
 list_errors = 0
 list_count = 0
+list_total = 125267
+# list_total = 8891
 recover_errors = 0
 
 def ls(path):
@@ -53,7 +55,7 @@ def scan(path):
     for f in files:
         paths.append(path + "/" + f)
     if time.time() - last_ts > 2.0:
-        print("Scanning", len(paths), "files...", "(%i errors %.1g%%)" % (list_errors, list_errors*100.0/list_count))
+        print("Scanning", len(paths), "files...", "%.1f%%" % (len(paths)*100.0/list_total), "(%i errors %.1f%%)" % (list_errors, list_errors*100.0/list_count))
         last_ts = time.time()
 
     # and then scan the subfolders...
@@ -63,8 +65,9 @@ def scan(path):
 
 scan(folder)
 
-if 0:
+if 1:
     start_ts = time.time()
+    created = dict()
 
     for progress, i in enumerate(paths):
         fld,leaf = os.path.split(i)
@@ -72,18 +75,21 @@ if 0:
 
         # check if we need to create output folder?
         outdir = out + leaf
-        if not os.path.isdir(outdir):
+        if outdir not in created and not os.path.isdir(outdir):
             os.makedirs(outdir)
+            created[outdir] = True
 
         if not leaf == ".DS_Store":
             o = out + part + "/" + leaf
             # print(i, "->", o)
-            if not os.path.exists(o) or Path(o).stat().st_size == 0:
+            # if not os.path.exists(o) or Path(o).stat().st_size == 0:
+            if 1:
                 args = ["./bin/apfs-recover", dev, idx, i]
                 outfile = open(o, "wb")
                 p = subprocess.run(args, stdout=outfile, stderr=subprocess.PIPE)
                 if not p.returncode == 0:
                     recover_errors = recover_errors + 1
+                    print(" ".join(args))
                 outfile.close()
             if time.time() - last_ts > 2.0:
                 last_ts = time.time()
@@ -92,10 +98,11 @@ if 0:
                     rate = progress / elapsed
                     if rate > 0:
                         remaining_files = len(paths) - progress
-                        remaining_time = int(remaining_files / rate)
-                        hrs = remaining_time / 3600
-                        remaining_time = remaining_time - (hrs * 3600)
-                        min = remaining_time / 60
-                        sec = remaining_time % 60
-                        print("Exporting", progress, "of", len(paths), "(%.2f%%)" % (progress * 100.0 / len(paths)), "files...", "%ih%im%is" % (hrs, min, sec))
+                        remaining_time = remaining_files / rate
+                        hrs = int(remaining_time / 3600)
+                        remaining_mins = remaining_time - (hrs * 3600)
+                        min = int(remaining_mins / 60)
+                        sec = int(remaining_mins) % 60
+                        # print(remaining_files, remaining_time, rate, hrs, min, sec)
+                        print("Exporting", progress, "of", len(paths), "(%.2f%%)" % (progress * 100.0 / len(paths)), "files...", "("+str(recover_errors), "errors)", "%ih%im%is @ %.1f" % (hrs, min, sec, rate))
 
